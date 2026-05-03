@@ -5,6 +5,16 @@ All notable changes to Tsuku will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-05-03
+
+### Added
+- **Streaming API** (`Tsuku::processToStream`): render templates incrementally to a writer callback, materializing only one row at a time. Memory usage is bounded by the largest single rendered piece (header, footer, or row), independent of total row count. Designed for large-catalog feed exports where the existing `process()` would OOM.
+  - Requires exactly one top-level `@for` over the streaming variable in the template; throws on missing, ambiguous, or nested matches.
+  - Accepts any `iterable` (arrays, generators, iterators) — generators are consumed lazily.
+  - Header and footer share `$contextData`; the loop body sees both `$contextData` and the current row item.
+  - Supports the optional key variable: `@for(rows as row, idx)`.
+  - Comprehensive test suite (12 tests across unit + integration).
+
 ## [1.2.0] - 2025-11-18
 
 ### Added

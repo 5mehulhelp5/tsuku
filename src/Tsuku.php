@@ -13,8 +13,9 @@ declare(strict_types=1);
 
 namespace Qoliber\Tsuku;
 
-use Qoliber\Tsuku\Template\Template;
 use Qoliber\Tsuku\Function\FunctionRegistry;
+use Qoliber\Tsuku\Streaming\StreamingProcessor;
+use Qoliber\Tsuku\Template\Template;
 
 class Tsuku
 {
@@ -49,6 +50,51 @@ class Tsuku
 
         $templateObject = new Template($template);
         return $templateObject->render($data, $context, $this->directiveRegistry, $this->formatterRegistry, $this->functionRegistry);
+    }
+
+    /**
+     * Stream a template through a writer, producing output incrementally.
+     *
+     * The template must contain exactly one top-level @for over $rowsVariable.
+     * Children before the loop become the header (rendered once with $contextData),
+     * the loop body is rendered once per row with the row available as the loop
+     * variable, and children after become the footer (rendered once).
+     *
+     * Memory usage is bounded by the size of the largest single rendered piece
+     * (header, footer, or one row), regardless of how many rows are streamed.
+     *
+     * @param string $template Template text containing one top-level @for.
+     * @param array<mixed> $contextData Data shared by header, footer, and each row.
+     * @param iterable<mixed> $rows Generator/iterator producing row data; consumed once.
+     * @param string $rowsVariable Name of the @for collection to stream (e.g. "products").
+     * @param callable(string): void $writer Receives output incrementally.
+     * @param \Qoliber\Tsuku\StrictnessMode|null $strictnessMode Override strictness mode for this call.
+     * @return void
+     */
+    public function processToStream(
+        string $template,
+        array $contextData,
+        iterable $rows,
+        string $rowsVariable,
+        callable $writer,
+        ?StrictnessMode $strictnessMode = null
+    ): void {
+        $this->context->clearWarnings();
+
+        $context = $strictnessMode !== null
+            ? new ProcessingContext($strictnessMode)
+            : $this->context;
+
+        $processor = new StreamingProcessor();
+        $processor->process(
+            $template,
+            $contextData,
+            $rows,
+            $rowsVariable,
+            $writer,
+            $context,
+            $this->functionRegistry
+        );
     }
 
     /**

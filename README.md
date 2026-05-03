@@ -136,6 +136,46 @@ $tsuku->process($template, ['price' => 99.99]);
 // Output: Total: €99.99
 ```
 
+## Streaming Large Datasets
+
+For large catalogs (10k+ rows) where holding the whole rendered output in memory is impractical, use `processToStream`. It renders the template incrementally — header once, each row in turn, footer once — and writes each piece through a callback as soon as it's ready.
+
+```php
+$tsuku = new Tsuku();
+
+$template = '<?xml version="1.0"?>
+<feed currency="{currency}">
+@for(products as product)
+  <item>
+    <sku>{product.sku}</sku>
+    <price>{product.price} {currency}</price>
+  </item>
+@end
+</feed>';
+
+$rows = function (): Generator {
+    // yield products lazily from your data source
+    foreach (loadProductsFromDb() as $row) {
+        yield $row;
+    }
+};
+
+$handle = fopen('feed.xml', 'wb');
+$tsuku->processToStream(
+    $template,
+    ['currency' => 'EUR'],   // shared by header, footer, and each row
+    $rows(),                  // any iterable; generators are consumed lazily
+    'products',               // name of the @for collection to stream
+    fn(string $chunk) => fwrite($handle, $chunk)
+);
+fclose($handle);
+```
+
+**Constraints:**
+- Template must contain exactly **one top-level** `@for` over the streaming variable. Multiple matches or nesting inside `@if`/`@for` throws.
+- The streamed iterable is consumed once. Generators cannot be rewound.
+- Memory usage is bounded by the size of the largest single piece (header, footer, or one row), regardless of total row count.
+
 ## Real-World Examples
 
 ### CSV Export with Escaping
