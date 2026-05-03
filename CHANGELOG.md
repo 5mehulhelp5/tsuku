@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Accepts any `iterable` (arrays, generators, iterators) — generators are consumed lazily.
   - Header and footer share `$contextData`; the loop body sees both `$contextData` and the current row item.
   - Supports the optional key variable: `@for(rows as row, idx)`.
-  - Comprehensive test suite (12 tests across unit + integration).
+  - Built-in functions, conditionals, and nested `@for` over sub-collections work the same inside the row body as in non-streaming mode.
+  - StrictnessMode override is honored (STRICT/WARNING/SILENT).
+  - Writer exceptions propagate to the caller.
+  - Comprehensive test suite: 13 unit tests + 3 integration tests, all passing alongside the existing 206-test suite (222 total).
 
 ## [1.2.0] - 2025-11-18
 

@@ -214,4 +214,91 @@ TPL;
 
         $this->assertSame("0:A\n1:B\n", $captured);
     }
+
+    public function testFunctionsWorkInRowBody(): void
+    {
+        // Built-in escape functions inside the streamed @for body must work the same
+        // as in non-streaming mode.
+        $template = "@for(items as item)<name>@xml(item.name)</name>\n@end";
+
+        $captured = '';
+        $this->tsuku->processToStream(
+            $template,
+            [],
+            [
+                ['name' => 'Widget & <Pro>'],
+                ['name' => 'Gadget "Plus"'],
+            ],
+            'items',
+            function (string $chunk) use (&$captured): void {
+                $captured .= $chunk;
+            }
+        );
+
+        $this->assertSame(
+            "<name>Widget &amp; &lt;Pro&gt;</name>\n<name>Gadget &quot;Plus&quot;</name>\n",
+            $captured
+        );
+    }
+
+    public function testNestedForOverDifferentCollectionWorksInRowBody(): void
+    {
+        // A row can contain a nested @for over a per-row sub-collection (tags, etc.).
+        $template = "@for(items as item){item.sku}=[@for(item.tags as t){t},@end];@end";
+
+        $captured = '';
+        $this->tsuku->processToStream(
+            $template,
+            [],
+            [
+                ['sku' => 'A', 'tags' => ['red', 'large']],
+                ['sku' => 'B', 'tags' => ['blue']],
+            ],
+            'items',
+            function (string $chunk) use (&$captured): void {
+                $captured .= $chunk;
+            }
+        );
+
+        $this->assertSame('A=[red,large,];B=[blue,];', $captured);
+    }
+
+    public function testWriterExceptionPropagates(): void
+    {
+        $template = "@for(rows as r){r.n}\n@end";
+
+        $writer = function (string $chunk): void {
+            if ($chunk === "2\n") {
+                throw new \DomainException('writer failed on row 2');
+            }
+        };
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('writer failed on row 2');
+
+        $this->tsuku->processToStream(
+            $template,
+            [],
+            [['n' => 1], ['n' => 2], ['n' => 3]],
+            'rows',
+            $writer
+        );
+    }
+
+    public function testStrictnessModeOverrideAffectsStreaming(): void
+    {
+        // STRICT mode should throw on a missing variable; SILENT (default) should not.
+        $template = "@for(rows as r){r.missing_field}\n@end";
+
+        $this->expectException(\Qoliber\Tsuku\Exception\TsukuException::class);
+
+        $this->tsuku->processToStream(
+            $template,
+            [],
+            [['n' => 1]],
+            'rows',
+            fn(string $chunk) => null,
+            \Qoliber\Tsuku\StrictnessMode::STRICT
+        );
+    }
 }
